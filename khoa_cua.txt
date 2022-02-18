@@ -1,0 +1,420 @@
+#include <LiquidCrystal.h>
+#include <Keypad.h>
+#include <Servo.h>
+#include <EEPROM.h>
+
+Servo myServo;
+#define button 2
+#define button2 3
+#define servo 10
+const byte ROWS = 4; //four rows
+const byte COLS = 3; //three columns
+char keys[ROWS][COLS] =
+{
+    {'1', '2', '3'},
+    {'4', '5', '6'},
+    {'7', '8', '9'},
+    {'*', '0', '#'}
+};
+byte rowPins[ROWS] = {A0, A1, A2, A3}; //connect to the row pinouts of the keypad
+byte colPins[COLS] = {A4, A5, 8}; //connect to the column pinouts of the keypad
+Keypad keypad = Keypad( makeKeymap(keys), rowPins, colPins, ROWS, COLS );
+// 16x2 LCD
+#define rs 12
+#define en 11
+#define d4 6
+#define d5 5
+#define d6 4
+#define d7 9
+#define led 7
+// initialize the library with the numbers of the interface pins
+LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+String mypassword;
+int counter = 0;
+int attempts = 0;
+int max_attempts = 3;
+int mode=0;
+int timeopen=0;
+int pass1AddrOffset;
+int pass2AddrOffset;
+int pass3AddrOffset;
+int pass4AddrOffset;
+int pass5AddrOffset;
+int pass6AddrOffset;
+int pass7AddrOffset;
+int pass8AddrOffset;
+int pass9AddrOffset;
+int pass10AddrOffset;
+int targetChange=-1;
+int adminAddrOffset;
+int eepromOffset;
+
+int writeStringToEEPROM(int addrOffset, const String &strToWrite)
+{
+  byte len = strToWrite.length();
+  EEPROM.write(addrOffset, len);
+  for (int i = 0; i < len; i++)
+  {
+    EEPROM.write(addrOffset + 1 + i, strToWrite[i]);
+  }
+  return addrOffset + 1 + len;
+}
+
+int readStringFromEEPROM(int addrOffset, String *strToRead)
+{
+  int newStrLen = EEPROM.read(addrOffset);
+  char data[newStrLen + 1];
+  for (int i = 0; i < newStrLen; i++)
+  {
+    data[i] = EEPROM.read(addrOffset + 1 + i);
+  }
+  data[newStrLen] = '\0'; // !!! NOTE !!! Remove the space between the slash "/" and "0" (I've added a space because otherwise there is a display bug)
+  *strToRead = String(data);
+  return addrOffset + 1 + newStrLen;
+}
+
+void setup()
+{
+    Serial.begin(9600);
+    myServo.attach(servo);
+    pinMode(button,INPUT_PULLUP);
+    pinMode(button2,INPUT_PULLUP);
+    pinMode(led,OUTPUT);
+  	myServo.write(0);
+    lcd.begin(16, 2);
+    Serial.println("enter password");
+    lcd.print("Enter Password:");
+    attachInterrupt(digitalPinToInterrupt(button), changemode, FALLING);
+    attachInterrupt(digitalPinToInterrupt(button2),checkdoor, CHANGE);
+	eepromOffset = 0;
+    String pass1 = "1234";
+    String pass2 = "1111";
+    String pass3 = "2222";
+    String pass4 = "3333";
+    String pass5 = "4444";
+    String pass6 = "5555";
+    String pass7 = "6666";
+    String pass8 = "7777";
+    String pass9 = "9999";
+    String pass10 = "8888";
+    String adminpass= "0000";
+    pass1AddrOffset = writeStringToEEPROM(eepromOffset, pass1);
+    pass2AddrOffset = writeStringToEEPROM(pass1AddrOffset, pass2);
+    pass3AddrOffset = writeStringToEEPROM(pass2AddrOffset, pass3);
+    pass4AddrOffset = writeStringToEEPROM(pass3AddrOffset, pass4);
+    pass5AddrOffset = writeStringToEEPROM(pass4AddrOffset, pass5);
+    pass6AddrOffset = writeStringToEEPROM(pass5AddrOffset, pass6);
+    pass7AddrOffset = writeStringToEEPROM(pass6AddrOffset, pass7);
+    pass8AddrOffset = writeStringToEEPROM(pass7AddrOffset, pass8);
+    pass9AddrOffset = writeStringToEEPROM(pass8AddrOffset, pass9);
+    pass10AddrOffset = writeStringToEEPROM(pass9AddrOffset, pass10);
+    adminAddrOffset = writeStringToEEPROM(pass10AddrOffset, adminpass);
+}
+
+bool checkpassword(String mypassword){
+  int add=eepromOffset;
+  while(add!=pass10AddrOffset){
+  	String pass;
+    add=readStringFromEEPROM(add, &pass);
+    if(pass==mypassword){
+    	return true;
+    }
+  }
+  return false;
+}
+
+void check(char key){
+   if (key)
+    {
+        Serial.println(key);
+        counter = counter + 1;
+        lcd.setCursor(counter, 1);
+        lcd.print("*");
+    }
+    if (key == '1')
+    {
+        mypassword = mypassword + 1;
+    }
+    if (key == '2')
+    {
+        mypassword = mypassword + 2;
+    }
+    if (key == '3')
+    {
+        mypassword = mypassword + 3;
+    }
+    if (key == '4')
+    {
+        mypassword = mypassword + 4;
+    }
+    if (key == '5')
+    {
+        mypassword = mypassword + 5;
+    }
+    if (key == '6')
+    {
+        mypassword = mypassword + 6;
+    }
+    if (key == '7')
+    {
+        mypassword = mypassword + 7;
+    }
+    if (key == '8')
+    {
+        mypassword = mypassword + 8;
+    }
+    if (key == '9')
+    {
+        mypassword = mypassword + 9;
+    }
+    if (key == '0')
+    {
+        mypassword = mypassword + 0;
+    }
+}
+
+int convert(String key){
+  	if (key == "1")
+    {
+        return eepromOffset;
+    }
+    if (key == "2")
+    {
+        return pass1AddrOffset;
+    }
+    if (key == "3")
+    {
+       return pass2AddrOffset;
+    }
+    if (key == "4")
+    {
+        return pass3AddrOffset;
+    }
+    if (key == "5")
+    {
+        return pass4AddrOffset;
+    }
+    if (key == "6")
+    {
+        return pass5AddrOffset;
+    }
+    if (key == "7")
+    {
+        return pass6AddrOffset;
+    }
+    if (key == "8")
+    {
+       return pass7AddrOffset;
+    }
+    if (key == "9")
+    {
+       return pass8AddrOffset;
+    }
+    if (key == "0")
+    {
+        return pass9AddrOffset;
+    }
+}
+
+void changemode(){
+  mypassword="";
+  counter=0;
+  if(mode%2==0){
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    Serial.println("Admin password");
+    lcd.print("Admin Password:");
+  }else{
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    Serial.println("Enter password");
+    lcd.print("Enter Password:");
+  }
+  mode++;
+  if(mode==2)mode=0;
+}
+
+
+void checkdoor(){
+  if(int(myServo.read())==0){
+    if(!checkpassword(mypassword)){
+      Serial.println("The Door is broken!");
+      digitalWrite(led,HIGH);
+    }else{
+  	  Serial.println("Door is open");
+    }
+  }
+  else
+    Serial.println("Door is close");
+}
+
+
+void loop()
+{
+  if(digitalRead(button2)==1){
+    timeopen=millis();
+  }
+  if(millis()-timeopen>20000){
+    Serial.println("The Door is not close!");
+    digitalWrite(led,HIGH);
+    timeopen=millis();
+  }
+  Serial.println(timeopen);
+  if(mode%3==0){
+    keypadfunction();
+  }else{
+    if(mode%3==1){
+      adminfunction();
+    }else{
+      changepassword();
+    }
+  }
+}
+
+void changepassword(){
+  char key = keypad.getKey();
+  check(key);
+  if (key == '*')
+  {
+    if(targetChange==-1){
+      targetChange=convert(mypassword);
+      Serial.println("Target is user "+mypassword);
+      Serial.println(targetChange);
+      mypassword="";
+      lcd.clear();
+      lcd.print("New password:");
+      counter=0;
+    }else{
+      Serial.println("New password:");
+      Serial.println(mypassword);
+      lcd.clear();
+      lcd.println("Pass changed");
+      delay(2000);
+      mode=0;
+      counter = 0;
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      Serial.println("Enter password");
+      lcd.print("Enter Password:");
+      writeStringToEEPROM(targetChange, mypassword);
+      targetChange=-1;
+      mypassword="";
+    }
+  } 
+  if(key == '#'){
+    lcd.clear();
+    lcd.println("Pass keeped");
+    delay(2000);
+    mypassword="";
+    counter=0;
+    mode=0;
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    Serial.println("Enter password");
+    lcd.print("Enter Password:");
+  }
+}
+
+void adminfunction(){
+    char key = keypad.getKey();
+    check(key);
+    if (key == '*')
+    {
+        Serial.println(mypassword);
+        String adminpass;
+        readStringFromEEPROM(pass10AddrOffset, &adminpass);
+        if ( adminpass == mypassword )
+        {
+            lcd.clear();
+            lcd.println("Access Granted");
+            delay(2000);
+            lcd.clear();
+            lcd.println("Change Lock   ");
+            delay(2000);
+            lcd.clear();
+            lcd.println("Change whose? ");
+            mypassword = "";
+            counter = 0;
+          	mode++;
+        }
+        else
+        {
+            Serial.println("wrong");
+            attempts = attempts + 1;
+            if (attempts >= max_attempts )
+            {
+                lcd.clear();
+                lcd.setCursor(0, 0);
+                lcd.print("Locked Out");
+                delay(1800000);
+                attempts = 0;
+            }
+            mypassword = "";
+            counter = 0;
+            lcd.clear();
+            lcd.setCursor(0, 0);
+            lcd.print("Wrong Password");
+            delay(1000);
+            lcd.setCursor(0, 1);
+            lcd.print("max attempts 3");
+            delay(1000);
+            lcd.clear();
+            lcd.println("Admin Password:");
+            lcd.setCursor(0, 1);
+        }
+    }
+}
+
+void keypadfunction()
+{
+    char key = keypad.getKey();
+    check(key);
+    if (key == '*')
+    {
+        Serial.println(mypassword);
+        if (checkpassword(mypassword))
+        {
+            digitalWrite(button2,0);
+            myServo.write(180);
+            delay(2000);
+            lcd.clear();
+            lcd.println("Welcome To      ");
+            lcd.setCursor(0, 1);
+            lcd.println("ElectroniClinic ");
+            delay(2000);
+            digitalWrite(button2,1);
+            mypassword = "";
+            counter = 0;
+            lcd.clear();
+            lcd.setCursor(0, 0);
+            lcd.println("Enter password ");
+            myServo.write(0);
+            delay(2000);
+        }
+        else
+        {
+            Serial.println("wrong");
+            attempts = attempts + 1;
+            if (attempts >= max_attempts )
+            {
+                lcd.clear();
+                lcd.setCursor(0, 0);
+                lcd.print("Locked Out");
+                delay(1800000);
+                attempts = 0;
+            }
+            mypassword = "";
+            counter = 0;
+            lcd.clear();
+            lcd.setCursor(0, 0);
+            lcd.print("Wrong Password");
+            delay(1000);
+            lcd.setCursor(0, 1);
+            lcd.print("max attempts 3");
+            delay(1000);
+            lcd.clear();
+            lcd.println("Enter password ");
+            lcd.setCursor(0, 1);
+        }
+    }
+}
